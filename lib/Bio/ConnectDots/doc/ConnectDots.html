@@ -85,14 +85,17 @@ as support for full outer joins is strong.</p>
 <hr />
 <h1><a name="getting_started">GETTING STARTED</a></h1>
 <p>To get started, first you will need to have Postgres installed. <a href="http://www.postgresql.org/">http://www.postgresql.org/</a></p>
-<p>Next, you'll need to edit DB.cnf with your Postgres user connections and the name of the database 
+<p>Next, you'll need to edit the file <code>Bio/ConnectDots/Config.pm</code> with your Postgres user connections and the name of the database 
 that you want to use for Connect the Dots. An example entry from this file looks like:</p>
 <pre>
-  [TEST]
-  host=yuki
-  user=username
-  password=secret
-  dbname=ctd_unittest</pre>
+  if($db =~ /test/i) {
+    $info = {
+      host=&gt;'hostname',
+      user=&gt;'username',
+      password=&gt;'password',
+      dbname=&gt;'ctd_unittest'
+    };
+  }</pre>
 <p>You'll need to load in some ConnectorSets (databases) with the <code>scripts/load.pl</code> script. An 
 example of how to do this can be found in <code>scripts/newconnectdot.pl</code></p>
 <p>At this point you can query the ConnectorSets that you have loaded. There is an example 

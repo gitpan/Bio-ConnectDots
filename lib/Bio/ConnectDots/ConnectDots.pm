@@ -1,6 +1,6 @@
 package Bio::ConnectDots::ConnectDots;
 
-our $VERSION = '1.0.0';
+our $VERSION = '1.0.1';
 
 use vars qw(@ISA @AUTO_ATTRIBUTES @OTHER_ATTRIBUTES %SYNONYMS %DEFAULTS);
 use strict;
@@ -187,14 +187,17 @@ as support for full outer joins is strong.
 
 To get started, first you will need to have Postgres installed. http://www.postgresql.org/
 
-Next, you'll need to edit DB.cnf with your Postgres user connections and the name of the database 
+Next, you'll need to edit the file C<Bio/ConnectDots/Config.pm> with your Postgres user connections and the name of the database 
 that you want to use for Connect the Dots. An example entry from this file looks like: 
 
-  [TEST]
-  host=yuki
-  user=username
-  password=secret
-  dbname=ctd_unittest
+  if($db =~ /test/i) {
+    $info = {
+      host=>'hostname',
+      user=>'username',
+      password=>'password',
+      dbname=>'ctd_unittest'
+    };
+  }
 
 You'll need to load in some ConnectorSets (databases) with the C<scripts/load.pl> script. An 
 example of how to do this can be found in C<scripts/newconnectdot.pl>
