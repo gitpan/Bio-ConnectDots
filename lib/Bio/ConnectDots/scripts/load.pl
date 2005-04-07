@@ -5,7 +5,6 @@ use Getopt::Long;
 use File::Path;
 use Bio::ConnectDots::Config;
 use Bio::ConnectDots::DB;
-use DBConnector;
 use strict;
 
 my($HELP,$VERBOSE,$ECHO_CMD,$DATABASE,$HOST,$USER,$PASSWORD,$LOADDIR,$LOADSAVE,$SQLLOG);

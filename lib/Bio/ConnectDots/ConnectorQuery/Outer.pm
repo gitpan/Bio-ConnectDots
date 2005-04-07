@@ -37,53 +37,70 @@ sub db_execute {
   my $cs_alias2sql_aliases=$self->cs_alias2sql_aliases;
   my %edge2on;	# translates the edge bewteen two nodes (concatenated as the key) to the ON clause that links them
   my %node2subselect;	# translates the cs_alias to it's corresponding subselect
+	my %constr_check; # {connectorset id}->{label id}
   my $i=0;
   my $SimpleGraph = new Bio::ConnectDots::SimpleGraph();	# graph scaffold for join tree building
+  my(@targets,@from,@where);
 
   # initialize cs alias to sql_aliases to empty ARRAYs for each alias
   for my $cs_alias (@{$self->cs_aliases}) {
     $cs_alias2sql_aliases->{$cs_alias}=[];
   }
-  my(@targets,@from,@where);
-  # generate dot where clauses (cs-label-dot-label-cs)
-  for my $join (@{$self->joins}) {
-	my $constrHash = $self->dot_where($join,\$i);
-	
-	# Add ct-cs inner join if there
-	push(@where, @{$constrHash->{term0}->{inner_join}}) if $constrHash->{term0}->{inner_join};			 
-	push(@where, @{$constrHash->{term1}->{inner_join}}) if $constrHash->{term1}->{inner_join};			 
-	
-	my $cd0 = $constrHash->{term0}->{cd};
-	my $cd1 = $constrHash->{term1}->{cd};
-	
-	$node2subselect{$cd0} = "(SELECT * FROM connectdot WHERE ". join(' AND ', @{ $constrHash->{term0}->{constraints} });
-	$node2subselect{$cd0} .= " LIMIT $plimit" if $preview;
-	$node2subselect{$cd0} .= ") AS $cd0";	
-	$node2subselect{$cd1} = "(SELECT * FROM connectdot WHERE ". join(' AND ', @{ $constrHash->{term1}->{constraints} });
-	$node2subselect{$cd1} .= " LIMIT $plimit" if $preview;
-	$node2subselect{$cd1} .= ") AS $cd1";	
-	my $key = ($cd0 lt $cd1)? $cd0.$cd1 : $cd1.$cd0;	# put lexically least cs first
-	$edge2on{$key} = "ON $constrHash->{outer_join_on}";
-	$SimpleGraph->add_edge($cd0, $cd1);
-  }
-  
-  
+
   # generate constraint where clauses
   for my $constraint (@{$self->constraints}) {
-    push(@where,$self->constraint_where($constraint,\$i));
+  	my $cs_id = $constraint->{_term}->{target_object}->{db_id};
+  	my $label_ids = $constraint->{_term}->{label_ids};
+		foreach my $lid (@$label_ids) {
+	  	if($constr_check{$cs_id}->{$lid}) {
+	  		my $csname = $constraint->{_term}->{cs_alias}->{alias_name};
+	  		$self->throw ("Error in Query Syntax: Use IN operator for multiple values from the same ConnectorSet ($csname)");
+	  	} 
+		}
+		foreach my $lid (@$label_ids) { $constr_check{$cs_id}->{$lid}=1 };
+		my $result=$self->constraint_where($constraint,\$i);
+		push(@where,@{$result->{where}}) if $result->{where};
+		my $cd = $result->{cd};
+		my $constrHash = $result->{term_where};
+		$node2subselect{$cd} = "(SELECT * FROM connectdot WHERE ". join(' AND ', @{ $constrHash->{constraints} });
+		$node2subselect{$cd} .= " LIMIT $plimit" if $preview;
+		$node2subselect{$cd} .= ") AS $cd";	
+		
   }
-
-  # generate ON clauses to connect sql_aliases for same cs_alias
-  # ex: LocusLink_cs_0.connector_id=LocusLink_cs_4.connector_id
-  for my $sql_aliases (values %$cs_alias2sql_aliases) {
-	next unless @$sql_aliases >= 2; # no joins necessary unless 2 or more tables
-	for(my $i=0;$i<@$sql_aliases-1;$i++) {
-	  my $cd0=$sql_aliases->[$i];
-	  my $cd1=$sql_aliases->[$i+1];
-	  my $key = ($cd0 lt $cd1)? $cd0.$cd1 : $cd1.$cd0;	# put lexically least cs first
-	  $edge2on{$key} = "ON $cd0.connector_id=$cd1.connector_id";
-	  $SimpleGraph->add_edge($cd0, $cd1);
-	}
+  # generate dot where clauses (cs-label-dot-label-cs)
+  for my $join (@{$self->joins}) {
+		my $constrHash = $self->dot_where($join,\$i);
+		
+		# Add ct-cs inner join if there
+		push(@where, @{$constrHash->{term0}->{inner_join}}) if $constrHash->{term0}->{inner_join};			 
+		push(@where, @{$constrHash->{term1}->{inner_join}}) if $constrHash->{term1}->{inner_join};			 
+		
+		my $cd0 = $constrHash->{term0}->{cd};
+		my $cd1 = $constrHash->{term1}->{cd};
+		
+		$node2subselect{$cd0} = "(SELECT * FROM connectdot WHERE ". join(' AND ', @{ $constrHash->{term0}->{constraints} });
+		$node2subselect{$cd0} .= " LIMIT $plimit" if $preview;
+		$node2subselect{$cd0} .= ") AS $cd0";	
+		$node2subselect{$cd1} = "(SELECT * FROM connectdot WHERE ". join(' AND ', @{ $constrHash->{term1}->{constraints} });
+		$node2subselect{$cd1} .= " LIMIT $plimit" if $preview;
+		$node2subselect{$cd1} .= ") AS $cd1";	
+		my $key = ($cd0 lt $cd1)? $cd0.$cd1 : $cd1.$cd0;	# put lexically least cs first
+		$edge2on{$key} = "ON $constrHash->{outer_join_on}";
+		$SimpleGraph->add_edge($cd0, $cd1);
+	  }
+	  
+	
+	  # generate ON clauses to connect sql_aliases for same cs_alias
+	  # ex: LocusLink_cs_0.connector_id=LocusLink_cs_4.connector_id
+	  for my $sql_aliases (values %$cs_alias2sql_aliases) {
+		next unless @$sql_aliases >= 2; # no joins necessary unless 2 or more tables
+		for(my $i=0;$i<@$sql_aliases-1;$i++) {
+		  my $cd0=$sql_aliases->[$i];
+		  my $cd1=$sql_aliases->[$i+1];
+		  my $key = ($cd0 lt $cd1)? $cd0.$cd1 : $cd1.$cd0;	# put lexically least cs first
+		  $edge2on{$key} = "ON $cd0.connector_id=$cd1.connector_id";
+		  $SimpleGraph->add_edge($cd0, $cd1);
+		}
   }
 
   # collect targets (columns that are output)
@@ -173,6 +190,7 @@ sub dot_where {
 
 sub constraint_where {
   my($self,$constraint,$i_ref)=@_;
+	my %results;
   my $db=$self->db;
   my @where;
   my ($hash, $cd) = $self->term_where($constraint->term,$i_ref);
@@ -186,7 +204,14 @@ sub constraint_where {
 				# should only be 1 constant by now -- see Constraint::normalize
     push(@where,"$cd.id $op ".$db->quote($constants->[0]));
   }
-  wantarray? @where: \@where;
+  $results{where} = \@where;
+  $results{cd} = $cd;
+  $results{term_where} = $hash;
+ 	foreach my $constraint (@{ $results{term_where}->{constraints} }) {
+ 		$constraint =~ s/^$cd\.//;
+ 	}	
+  
+  return \%results;
 }
 sub term_where {
   my($self,$term,$i_ref)=@_;

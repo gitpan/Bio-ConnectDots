@@ -1,6 +1,6 @@
 package Bio::ConnectDots::ConnectDots;
 
-our $VERSION = '1.0.1';
+our $VERSION = '1.0.2';
 
 use vars qw(@ISA @AUTO_ATTRIBUTES @OTHER_ATTRIBUTES %SYNONYMS %DEFAULTS);
 use strict;

@@ -38,7 +38,7 @@ sub db_execute {
   my %out_cols;
   for my $output (@{$self->outputs}) {
     my($output_name,$column,$cs_id,$label_id)=$output->get(qw(output_name column cs_id label_id));
-	$out_cols{$column} = 1;
+		$out_cols{$column} = 1;
     my $cd="cd$i";
     push(@targets,"$cd.id AS $output_name");
     push(@columns,$output_name);
@@ -54,11 +54,20 @@ sub db_execute {
   my @tables=("(SELECT ". join(',', keys %out_cols) ." FROM ". $self->input .") AS ct");
     
   for my $constraint (@{$self->constraints}) {
-	my $cd = $cds{$constraint->cs_id}{$constraint->label_ids->[0]};
     my($column,$cs_id)=($constraint->column,$constraint->cs_id);
-    push(@where,$self->constraint_where($constraint,$cs_id,$cd));
+		my $label_id = $constraint->label_ids->[0];
+		next unless $cs_id && $label_id && $column;
+    my $cd="cd$i";
+    my $on= "ON ct.$column=$cd.connector_id";
+		my $subselect = "(SELECT * FROM connectdot WHERE connectorset_id=$cs_id AND label_id=$label_id";
+		$subselect .= " LIMIT $plimit" if $preview;
+		$subselect .= ") AS $cd $on";		
+    push(@left_joins,$subselect);
+    $cds{$cs_id}{$label_id} = $cd;
     $i++;
+	  push(@where,$self->constraint_where($constraint,$cs_id,$cd));
   }
+
   my $targets=join(', ',@targets);
   my $tables=join(', ',@tables);
   my $left_joins=join(' LEFT JOIN ',@left_joins);
@@ -74,5 +83,6 @@ sub db_execute {
   grep push(@col_names,/.*AS (.+)/), @targets; # get col names from targets AS clause
   $self->remove_subsets($db->{dbh}, $name,$self->{remove_subsets}, \@col_names) if $self->{remove_subsets};
  }
+ 
 
 1;
